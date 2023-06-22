@@ -2,10 +2,13 @@ from pymongo import MongoClient
 from urllib.parse import quote_plus
 import csv
 import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 #fetch data from the cleaned-data2020.csv file
 def get_physicians_data_csv():
-    csv_file_path = 'cleaned-data2020.csv'
+    csv_file_path =  os.path.join('resources', 'cleaned-data2020.csv')
     doctors_details = list()
 
     with open(csv_file_path, 'r') as file:
@@ -27,6 +30,7 @@ def get_doctors_data_rate(doctor_info):
 
 # helper function for saving data to a csv file
 def save_data_to_csv(file_data):
+    file_path =  os.path.join('resources', 'doctors_ratings.csv')
     field_names = ['review_id',
                    'doctor_first_name',
                    'doctor_last_name',
@@ -35,9 +39,9 @@ def save_data_to_csv(file_data):
 
                    ]
 
-    file_exists = os.path.isfile('doctors_ratings.csv')
+    file_exists = os.path.isfile(file_path)
 
-    with open('doctors_ratings.csv', mode='a', newline='') as csv_file:
+    with open(file_path, mode='a', newline='') as csv_file:
         writer = csv.DictWriter(csv_file, fieldnames=field_names)
 
         if not file_exists:
@@ -93,11 +97,13 @@ def save_doctor_ratings_csv():
             
 
 # connect to database 
-user = "c1-ds4a-2-team-23"
-password = "PhobRoswuBropRaKUM9R"
-host = "20.232.135.212:27017"
+
+user = os.getenv('user')
+password = os.getenv('pwd')
+host = os.getenv('host')
+
 uri = "mongodb://%s:%s@%s" % (
-    quote_plus(user), quote_plus(password), host)
+    quote_plus(user.encode('utf-8')), quote_plus(password.encode('utf-8')), quote_plus(host.encode('utf-8')))
 client = MongoClient(uri)
 
 db = client['healthrate']
