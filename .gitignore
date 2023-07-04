@@ -163,3 +163,4 @@ cython_debug/
 # Other files and folder patterns
 *secret*
 *credential*
+*scheduler*
