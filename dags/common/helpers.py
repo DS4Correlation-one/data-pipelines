@@ -5,6 +5,8 @@ import json
 import boto3
 import io
 from io import BytesIO, StringIO
+from common.credentials.secrets import *
+
 
 def read_chunks(file_path, size):
     """
@@ -20,15 +22,21 @@ def read_chunks(file_path, size):
     dataset = pd.concat(data_chunks)
     print('Read complete.')
     return dataset
-    
+
+
 def upload_dataframe_to_s3_csv(dataframe, bucket_name, s3_key):
     # Convert DataFrame to CSV string
     csv_buffer = StringIO()
     dataframe.to_csv(csv_buffer, index=False)
-    
+    s3 = boto3.client(
+        's3',
+        aws_access_key_id=s3_aws_access_key_id,
+        aws_secret_access_key=s3_secret_access_key,
+        region_name=aws_region)
     # Upload the CSV string as a file to S3
     s3.put_object(Body=csv_buffer.getvalue(), Bucket=bucket_name, Key=s3_key)
-    
+
+
 def read_chunks_bytes(s3_obj, size):
     """
     Read S3 Object in chunks because it has many rows. Returns a concatenated dataframe.
@@ -43,6 +51,7 @@ def read_chunks_bytes(s3_obj, size):
     dataset = pd.concat(data_chunks)
     print('Read complete.')
     return dataset
+
 
 if __name__ == '__main__':
     print('loading helper functions.')

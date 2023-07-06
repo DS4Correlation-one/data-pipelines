@@ -10,7 +10,7 @@ import boto3
 import io
 import logging
 from io import BytesIO, StringIO
-from common.helpers import read_chunks
+from common.helpers import read_chunks, upload_dataframe_to_s3_csv
 from common.credentials.secrets import *
 
 logger = logging.getLogger(__name__)
@@ -35,82 +35,20 @@ with DAG("etl_dag",  # Dag id
     t0_initialize = PythonOperator(task_id='initialize_ingest',
                                    python_callable=initialize_ingest,
                                    dag=dag)
-  
+
     ################################################################
     ## Research Payments Ingest ##
-    ################################################################    
-    research_keep_col_list = ['Change_Type',
-                                'ClinicalTrials_Gov_Identifier',
-                                'Context_of_Research',
-                                'Covered_Recipient_First_Name',
-                                'Covered_Recipient_Last_Name',
-                                'Covered_Recipient_License_State_code1',
-                                'Covered_Recipient_License_State_code2',
-                                'Covered_Recipient_License_State_code3',
-                                'Covered_Recipient_License_State_code4',
-                                'Covered_Recipient_License_State_code5',
-                                'Covered_Recipient_Middle_Name',
-                                'Covered_Recipient_Name_Suffix',
-                                'Covered_Recipient_NPI',
-                                'Covered_Recipient_Primary_Type_1',
-                                'Covered_Recipient_Primary_Type_2',
-                                'Covered_Recipient_Primary_Type_3',
-                                'Covered_Recipient_Primary_Type_4',
-                                'Covered_Recipient_Primary_Type_5',
-                                'Covered_Recipient_Primary_Type_6',
-                                'Covered_Recipient_Profile_ID',
-                                'Covered_Recipient_Type',
-                                'Date_of_Payment',
-                                'Dispute_Status_for_Publication',
-                                'Expenditure_Category1',
-                                'Expenditure_Category2',
-                                'Expenditure_Category3',
-                                'Expenditure_Category4',
-                                'Expenditure_Category5',
-                                'Expenditure_Category6',
-                                'Form_of_Payment_or_Transfer_of_Value',
-                                'Indicate_Drug_or_Biological_or_Device_or_Medical_Supply_2',
-                                'Indicate_Drug_or_Biological_or_Device_or_Medical_Supply_3',
-                                'Indicate_Drug_or_Biological_or_Device_or_Medical_Supply_4',
-                                'Indicate_Drug_or_Biological_or_Device_or_Medical_Supply_5',
-                                'Indicate_Drug_or_Biological_or_Device_or_Medical_Supply_1',
-                                'Name_of_Study',
-                                'Payment_Publication_Date',
-                                'Product_Category_or_Therapeutic_Area_1',
-                                'Product_Category_or_Therapeutic_Area_2',
-                                'Product_Category_or_Therapeutic_Area_3',
-                                'Product_Category_or_Therapeutic_Area_4',
-                                'Product_Category_or_Therapeutic_Area_5',
-                                'Program_Year',
-                                'Recipient_City',
-                                'Recipient_Country',
-                                'Recipient_Postal_Code',
-                                'Recipient_Primary_Business_Street_Address_Line2',
-                                'Recipient_Primary_Business_Street_Address_Line1',
-                                'Recipient_Province',
-                                'Recipient_State',
-                                'Recipient_Zip_Code',
-                                'Record_ID',
-                                'Teaching_Hospital_CCN',
-                                'Teaching_Hospital_ID',
-                                'Teaching_Hospital_Name',
-                                'Applicable_Manufacturer_or_Applicable_GPO_Making_Payment_ID',
-                                'Applicable_Manufacturer_or_Applicable_GPO_Making_Payment_Name',
-                                'Applicable_Manufacturer_or_Applicable_GPO_Making_Payment_State',
-                                'Applicable_Manufacturer_or_Applicable_GPO_Making_Payment_Country',
-                                'Total_Amount_of_Payment_USDollars']
-    
+    ################################################################
+
     def ingest_research_2020():
         logging.info('ingesting 2020 research payments file.')
         # Research Payments File Path
         research_2020_path = "https://download.cms.gov/openpayments/PGYR20_P063023/OP_DTL_RSRCH_PGYR2020_P06302023.csv"
-        # upload dataframe as csv
         research_2020_df = read_chunks(research_2020_path, 50000)
-        research_2020_df = research_2020_df[research_keep_col_list]
-        # research_2020_file_name = f"{s3_key}2020_research_payments.csv"
-        # upload_dataframe_to_s3_csv(
-        #     research_2020_df, bucket_name, research_2020_file_name)
+        # upload dataframe as csv
+        upload_dataframe_to_s3_csv(research_2020_df, bucket_name, f"{source_s3_key}{research_payments_2020}")
         logging.info('Research 2020 payment file ingest complete.')
+        
         
     t1_ingest_research_2020 = PythonOperator(task_id='ingest_research_2020',
                                               python_callable=ingest_research_2020,
@@ -121,11 +59,8 @@ with DAG("etl_dag",  # Dag id
         # Research Payments File Path
         research_2021_path = "https://download.cms.gov/openpayments/PGYR21_P012023/OP_DTL_RSRCH_PGYR2021_P01202023.csv"
         research_2021_df = read_chunks(research_2021_path, 50000)
-        research_2021_df = research_2021_df[research_keep_col_list]
+        upload_dataframe_to_s3_csv(research_2021_df, bucket_name, f"{source_s3_key}{research_payments_2021}")
         logging.info('Research 2021 payment file ingest complete.')
-        # research_2021_file_name = f"{s3_key}2021_research_payments.csv"
-        # upload_dataframe_to_s3_csv(
-        #     research_2021_df, bucket_name, research_2021_file_name)
         
     t1_ingest_research_2021 = PythonOperator(task_id='ingest_research_2021',
                                               python_callable=ingest_research_2021,
@@ -134,49 +69,27 @@ with DAG("etl_dag",  # Dag id
     ################################################################
     ## General Payments Ingest ##
     ################################################################
-    drop_payment_cols = ['Covered_Recipient_Middle_Name','Covered_Recipient_Name_Suffix','Recipient_Province',
-                     'Recipient_Postal_Code','Contextual_Information','Covered_or_Noncovered_Indicator_1',
-                     'Indicate_Drug_or_Biological_or_Device_or_Medical_Supply_1','Product_Category_or_Therapeutic_Area_1',
-                     'Name_of_Drug_or_Biological_or_Device_or_Medical_Supply_1','Associated_Drug_or_Biological_NDC_1',
-                     'Associated_Device_or_Medical_Supply_PDI_1','Covered_or_Noncovered_Indicator_2',
-                     'Indicate_Drug_or_Biological_or_Device_or_Medical_Supply_2','Product_Category_or_Therapeutic_Area_2',
-                     'Name_of_Drug_or_Biological_or_Device_or_Medical_Supply_2','Associated_Drug_or_Biological_NDC_2',
-                     'Associated_Device_or_Medical_Supply_PDI_2','Covered_or_Noncovered_Indicator_3',
-                     'Indicate_Drug_or_Biological_or_Device_or_Medical_Supply_3','Product_Category_or_Therapeutic_Area_3',
-                     'Name_of_Drug_or_Biological_or_Device_or_Medical_Supply_3','Associated_Drug_or_Biological_NDC_3',
-                     'Associated_Device_or_Medical_Supply_PDI_3','Covered_or_Noncovered_Indicator_4',
-                     'Indicate_Drug_or_Biological_or_Device_or_Medical_Supply_4','Product_Category_or_Therapeutic_Area_4',
-                     'Name_of_Drug_or_Biological_or_Device_or_Medical_Supply_4','Associated_Drug_or_Biological_NDC_4',
-                     'Associated_Device_or_Medical_Supply_PDI_4','Covered_or_Noncovered_Indicator_5',
-                     'Indicate_Drug_or_Biological_or_Device_or_Medical_Supply_5','Product_Category_or_Therapeutic_Area_5',
-                     'Name_of_Drug_or_Biological_or_Device_or_Medical_Supply_5','Associated_Drug_or_Biological_NDC_5',
-                     'Associated_Device_or_Medical_Supply_PDI_5','Covered_Recipient_Specialty_2','Covered_Recipient_Specialty_3','Covered_Recipient_Specialty_4',
-                     'Covered_Recipient_Specialty_5','Covered_Recipient_Specialty_6','Covered_Recipient_Primary_Type_2',
-                     'Covered_Recipient_Primary_Type_3','Covered_Recipient_Primary_Type_4',
-                     'Covered_Recipient_Primary_Type_5', 'Covered_Recipient_Primary_Type_6']
     
-      
     def ingest_general_2020():
         logging.info('ingesting 2020 general payments file.')
         # General Payments File Path
         payments_2020_path = "https://download.cms.gov/openpayments/PGYR20_P012023/OP_DTL_GNRL_PGYR2020_P01202023.csv"
-        payments_2020_df = read_chunks(payments_2020_path, 15000)
-        payments_2020_df.drop(columns=drop_payment_cols, inplace=True)
+        # payments_2020_df = read_chunks(payments_2020_path, 5000)
+        payments_2020_df = pd.read_csv(payments_2020_path, low_memory=False, nrows=300000)
     
     def ingest_general_2021():
         logging.info('ingesting 2021 general payments file.')
         # General Payments File Path
         payments_2021_path ="https://download.cms.gov/openpayments/PGYR21_P012023/OP_DTL_GNRL_PGYR2021_P01202023.csv"
-        payments_2021_df = read_chunks(payments_2021_path, 15000)
-        payments_2021_df.drop(columns=drop_payment_cols, inplace=True)
+        # payments_2021_df = read_chunks(payments_2021_path, 5000)
    
-    t2_ingest_general_2020 = PythonOperator(task_id='ingest_general_2020',
-                                              python_callable=ingest_general_2020,
-                                              dag=dag)
+    # t2_ingest_general_2020 = PythonOperator(task_id='ingest_general_2020',
+    #                                           python_callable=ingest_general_2020,
+    #                                           dag=dag)
    
-    t2_ingest_general_2021 = PythonOperator(task_id='ingest_general_2021',
-                                              python_callable=ingest_general_2021,
-                                              dag=dag)
+    # t2_ingest_general_2021 = PythonOperator(task_id='ingest_general_2021',
+    #                                           python_callable=ingest_general_2021,
+    #                                           dag=dag)
    
    ################################################################
    ## Ownership Data Ingest ##
@@ -188,13 +101,11 @@ with DAG("etl_dag",  # Dag id
 
         # Read Ownership Data for 2020 and 2021
         ownership_2020_df = read_chunks(ownership_2020_path, 50000)
-        # ownership_2020_file_name = f"{s3_key}2020_ownership_payments.csv"
-        # upload_dataframe_to_s3_csv(ownership_2020_df, bucket_name, ownership_2020_file_name)
+        upload_dataframe_to_s3_csv(ownership_2020_df, bucket_name, f"{source_s3_key}{ownership_payments_2020}")
 
         ownership_2021_df = read_chunks(ownership_2021_path, 50000)
+        upload_dataframe_to_s3_csv(ownership_2021_df, bucket_name, f"{source_s3_key}{ownership_payments_2021}")
         logging.info('Hospital ownership payment file ingest complete.')
-        # ownership_2021_file_name = f"{s3_key}2021_ownership_payments.csv"
-        # upload_dataframe_to_s3_csv(ownership_2021_df, bucket_name, ownership_2021_file_name)
 
     t3_ingest_ownersip = PythonOperator(task_id='ingest_ownership',
                                               python_callable=ingest_ownership,
@@ -210,11 +121,8 @@ with DAG("etl_dag",  # Dag id
 
         # MIPS Data
         mips_df = pd.read_csv(mips_data_path)
-        mips_df.drop(columns=[' Org_PAC_ID', ' facility_ccn',
-                              ' facility_lbn', ' Cost_category_score'], inplace=True)
+        # upload_dataframe_to_s3_csv(mips_df, bucket_name, f"{source_s3_key}{mips_file}")
         logging.info('MIPs data file ingest complete.')
-        # mips_file_name = f"{s3_key}mips_score.csv"
-        # upload_dataframe_to_s3_csv(mips_df, bucket_name, mips_file_name)
 
     t4_ingest_mips = PythonOperator(task_id='ingest_mips',
                                     python_callable=ingest_mips,
@@ -232,9 +140,8 @@ with DAG("etl_dag",  # Dag id
         # hospital owner data
         hospital_response = requests.get(hospital_url)
         hospital_df = pd.DataFrame(hospital_response.json())
+        upload_dataframe_to_s3_csv(hospital_df, bucket_name, f"{source_s3_key}{hospital_owner}")
         logging.info('hospital owner data file ingest complete.')
-        # hospital_file_name = f"{s3_key}hospital_owner.csv"
-        # upload_dataframe_to_s3_csv(hospital_df, bucket_name, hospital_file_name)
 
     t5_ingest_hospital_owner_info = PythonOperator(task_id='ingest_hospital_owner',
                                               python_callable=ingest_hospital_owner,
@@ -249,13 +156,12 @@ with DAG("etl_dag",  # Dag id
         profile_path = "https://download.cms.gov/openpayments/PHPRFL_P012023/OP_CVRD_RCPNT_PRFL_SPLMTL_P01202023.csv"
         # # Read Physician Profile Supplement - no concatenation
         profile_df = read_chunks(profile_path, 50000)
+        upload_dataframe_to_s3_csv(profile_df, bucket_name, f"{source_s3_key}{physician_profile}")
         logging.info('physician profile file ingest complete.')
-        # profile_file_name = f"{s3_key}physician_profile.csv"
-        # upload_dataframe_to_s3_csv(profile_df, bucket_name, profile_file_name)
 
     t6_ingest_physician_profile = PythonOperator(task_id='ingest_physician_profile',
                                                  python_callable=ingest_physician_profile,
                                                  dag=dag)
 
-t0_initialize >> t1_ingest_research_2020 >> t1_ingest_research_2021 >> t2_ingest_general_2020 >> t2_ingest_general_2021
-t0_initialize >> [t3_ingest_ownersip, t4_ingest_mips, t5_ingest_hospital_owner_info, t6_ingest_physician_profile]
+t0_initialize >> t6_ingest_physician_profile >> t1_ingest_research_2020 >> t1_ingest_research_2021
+t0_initialize >> [t3_ingest_ownersip, t4_ingest_mips, t5_ingest_hospital_owner_info]
