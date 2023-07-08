@@ -24,7 +24,7 @@ def get_physicians_data_csv():
     url = "https://download.cms.gov/openpayments/PHPRFL_P012023/OP_CVRD_RCPNT_PRFL_SPLMTL_P01202023.csv"
     df = read_chunks(url, 10000)
     select_columns = ['Covered_Recipient_Profile_First_Name', 'Covered_Recipient_Profile_Last_Name',
-                                   'Covered_Recipient_Profile_Address_Line_1','Covered_Recipient_Profile_Zipcode', 'Covered_Recipient_NPI']
+                                   'Covered_Recipient_Profile_Address_Line_1','Covered_Recipient_Profile_Zipcode', 'Covered_Recipient_NPI', 'Covered_Recipient_Profile_ID']
     doctors_details_df = df[select_columns]
     doctors_details = doctors_details_df.values.tolist()
     return doctors_details[1192089:]
@@ -45,8 +45,8 @@ def save_data_to_csv(file_data):
                    'doctor_last_name',
                    'rating',
                    'physician_npi',
-                   'count'
-
+                   'count',
+                   'physician_profile_id'
                    ]
 
     file_exists = os.path.isfile('doctors_ratings.csv')
@@ -100,7 +100,8 @@ def save_doctor_ratings_csv():
             dr_info = {
                 'doctor_first_name':  physician[0],
                 'doctor_last_name':  physician[1],
-                'physician_npi': physician[4]
+                'physician_npi': physician[4],
+                'physician_profile_id': physician[5]
 
             }
             save_data_to_csv({**doctor_data_rate, ** dr_info })
