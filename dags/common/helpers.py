@@ -36,6 +36,15 @@ def upload_dataframe_to_s3_csv(dataframe, bucket_name, s3_key):
     # Upload the CSV string as a file to S3
     s3.put_object(Body=csv_buffer.getvalue(), Bucket=bucket_name, Key=s3_key)
 
+def get_s3_obj(bucket_name, file_path):
+    s3 = boto3.client(
+        's3',
+        aws_access_key_id=s3_aws_access_key_id,
+        aws_secret_access_key=s3_secret_access_key,
+        region_name=aws_region)
+    s3_object = s3.get_object(Bucket=bucket_name, Key=file_path)
+    return s3_object
+
 
 def read_chunks_bytes(s3_obj, size):
     """
