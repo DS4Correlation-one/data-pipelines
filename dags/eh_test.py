@@ -10,7 +10,7 @@ import boto3
 import io
 import logging
 from io import BytesIO, StringIO
-from common.helpers import read_chunks, upload_dataframe_to_s3_csv, read_chunks_bytes, get_s3_obj
+from common.helpers import read_chunks, upload_dataframe_to_s3_csv, read_chunks_bytes, get_s3_obj, load_to_rds
 from common.credentials.secrets import *
 
 logger = logging.getLogger(__name__)
@@ -46,7 +46,7 @@ with DAG("etl_dag",  # Dag id
         research_2020_path = "https://download.cms.gov/openpayments/PGYR20_P063023/OP_DTL_RSRCH_PGYR2020_P06302023.csv"
         research_2020_df = read_chunks(research_2020_path, 50000)
         # upload dataframe as csv
-        upload_dataframe_to_s3_csv(research_2020_df, bucket_name, f"{source_s3_key}{research_payments_2020}")
+        upload_dataframe_to_s3_csv(s3_aws_access_key_id, s3_secret_access_key, aws_region, research_2020_df, bucket_name, f"{source_s3_key}{research_payments_2020}")
         logging.info('Research 2020 payment file ingest complete.')
         
         
@@ -59,7 +59,7 @@ with DAG("etl_dag",  # Dag id
         # Research Payments File Path
         research_2021_path = "https://download.cms.gov/openpayments/PGYR21_P012023/OP_DTL_RSRCH_PGYR2021_P01202023.csv"
         research_2021_df = read_chunks(research_2021_path, 50000)
-        upload_dataframe_to_s3_csv(research_2021_df, bucket_name, f"{source_s3_key}{research_payments_2021}")
+        upload_dataframe_to_s3_csv(s3_aws_access_key_id, s3_secret_access_key, aws_region, research_2021_df, bucket_name, f"{source_s3_key}{research_payments_2021}")
         logging.info('Research 2021 payment file ingest complete.')
         
     t1_ingest_research_2021 = PythonOperator(task_id='ingest_research_2021',
@@ -100,10 +100,10 @@ with DAG("etl_dag",  # Dag id
 
         # Read Ownership Data for 2020 and 2021
         ownership_2020_df = read_chunks(ownership_2020_path, 50000)
-        upload_dataframe_to_s3_csv(ownership_2020_df, bucket_name, f"{source_s3_key}{ownership_payments_2020}")
+        upload_dataframe_to_s3_csv(s3_aws_access_key_id, s3_secret_access_key, aws_region, ownership_2020_df, bucket_name, f"{source_s3_key}{ownership_payments_2020}")
 
         ownership_2021_df = read_chunks(ownership_2021_path, 50000)
-        upload_dataframe_to_s3_csv(ownership_2021_df, bucket_name, f"{source_s3_key}{ownership_payments_2021}")
+        upload_dataframe_to_s3_csv(s3_aws_access_key_id, s3_secret_access_key, aws_region, ownership_2021_df, bucket_name, f"{source_s3_key}{ownership_payments_2021}")
         logging.info('Hospital ownership payment file ingest complete.')
 
     t3_ingest_ownersip = PythonOperator(task_id='ingest_ownership',
@@ -120,7 +120,7 @@ with DAG("etl_dag",  # Dag id
 
         # MIPS Data
         mips_df = pd.read_csv(mips_data_path)
-        upload_dataframe_to_s3_csv(mips_df, bucket_name, f"{source_s3_key}{mips_file}")
+        upload_dataframe_to_s3_csv(s3_aws_access_key_id, s3_secret_access_key, aws_region, mips_df, bucket_name, f"{source_s3_key}{mips_file}")
         logging.info('MIPs data file ingest complete.')
 
     t4_ingest_mips = PythonOperator(task_id='ingest_mips',
@@ -139,7 +139,7 @@ with DAG("etl_dag",  # Dag id
         # hospital owner data
         hospital_response = requests.get(hospital_url)
         hospital_df = pd.DataFrame(hospital_response.json())
-        upload_dataframe_to_s3_csv(hospital_df, bucket_name, f"{source_s3_key}{hospital_owner}")
+        upload_dataframe_to_s3_csv(s3_aws_access_key_id, s3_secret_access_key, aws_region, hospital_df, bucket_name, f"{source_s3_key}{hospital_owner}")
         logging.info('hospital owner data file ingest complete.')
 
     t5_ingest_hospital_owner_info = PythonOperator(task_id='ingest_hospital_owner',
@@ -155,7 +155,7 @@ with DAG("etl_dag",  # Dag id
         profile_path = "https://download.cms.gov/openpayments/PHPRFL_P012023/OP_CVRD_RCPNT_PRFL_SPLMTL_P01202023.csv"
         # # Read Physician Profile Supplement - no concatenation
         profile_df = read_chunks(profile_path, 50000)
-        upload_dataframe_to_s3_csv(profile_df, bucket_name, f"{source_s3_key}{physician_profile}")
+        upload_dataframe_to_s3_csv(s3_aws_access_key_id, s3_secret_access_key, aws_region, profile_df, bucket_name, f"{source_s3_key}{physician_profile}")
         logging.info('physician profile file ingest complete.')
 
     t6_ingest_physician_profile = PythonOperator(task_id='ingest_physician_profile',
@@ -167,15 +167,13 @@ with DAG("etl_dag",  # Dag id
     ################################################################
     def mips_etl():
         logging.info('transforming mips file.')
-        mips_object = get_s3_obj(bucket_name,f'{source_s3_key}{mips_file}')
+        mips_object = get_s3_obj(s3_aws_access_key_id, s3_secret_access_key, aws_region, bucket_name,f'{source_s3_key}{mips_file}')
         fact_mips = read_chunks_bytes(mips_object, 50000)
         # transform data
-        columns_to_drop = [' facility_ccn',' facility_lbn',' Cost_category_score']
+        columns_to_drop = [' facility_ccn',' facility_lbn',' Cost_category_score', ' lst_nm', ' frst_nm']
         fact_mips.drop(columns_to_drop, axis=1, inplace=True)
         # Renaming columns for consistency 
         fact_mips.rename(columns = {' Org_PAC_ID':'Org_PAC_ID',
-                              ' lst_nm': 'Covered_Receipient_Last_Name',
-                              ' frst_nm': 'Covered_Recipient_Profile_First_Name',
                               ' source': 'Source',
                               ' Quality_category_score': 'Quality_Catgegory_Score',
                               ' PI_category_score': 'PI_Category_Score',
@@ -189,8 +187,6 @@ with DAG("etl_dag",  # Dag id
         fact_mips.dropna(subset = ['Org_PAC_ID'], inplace=True)
         
         # Fill non-ID nulls with NULL
-        fact_mips["Covered_Receipient_Last_Name"].fillna("NULL", inplace = True)
-        fact_mips["Covered_Recipient_Profile_First_Name"].fillna("NULL", inplace = True)
         fact_mips["Quality_Catgegory_Score"].fillna(0, inplace = True)
         fact_mips["PI_Category_Score"].fillna(0, inplace = True)
         fact_mips["IA_Category_Score"].fillna(0, inplace = True)
@@ -208,21 +204,20 @@ with DAG("etl_dag",  # Dag id
         null_values = fact_mips.isnull().sum()
         print(f'found {null_values} nulls')
         # fill nulls
-        fact_mips["Covered_Receipient_Last_Name"].fillna("NULL", inplace = True)
-        fact_mips["Covered_Recipient_Profile_First_Name"].fillna("NULL", inplace = True)
         fact_mips["Quality_Catgegory_Score"].fillna("NULL", inplace = True)
         fact_mips["PI_Category_Score"].fillna("NULL", inplace = True)
         fact_mips["IA_Category_Score"].fillna("NULL", inplace = True)
         
         # check duplicates
-        duplicate_rows=fact_mips[fact_mips.duplicated(subset=['NPI', 'Org_PAC_ID', 'Covered_Receipient_Last_Name',
-           'Covered_Recipient_Profile_First_Name', 'Source',
+        duplicate_rows=fact_mips[fact_mips.duplicated(subset=['NPI', 'Org_PAC_ID', 'Source',
            'Quality_Catgegory_Score', 'PI_Category_Score', 'IA_Category_Score',
            'Final_MIPS_Score_Without_CPB', 'Final_MIPS_Score'], keep=False)]
         print(duplicate_rows)
         
+        fact_mips.columns= fact_mips.columns.str.lower()
+        
         # upload transformed csv
-        upload_dataframe_to_s3_csv(fact_mips, bucket_name, f"{transform_s3_key}{fact_mips_file}")
+        upload_dataframe_to_s3_csv(s3_aws_access_key_id, s3_secret_access_key, aws_region, fact_mips, bucket_name, f"{transform_s3_key}{fact_mips_file}")
         logging.info('successfully transformed mips file.')
     
     t7_mips_etl = PythonOperator(task_id='transform_mips_data',
@@ -234,8 +229,8 @@ with DAG("etl_dag",  # Dag id
     ################################################################
     def ownership_payment_etl():
         logging.info('transforming ownership payment file.')
-        op_2020_object = get_s3_obj(bucket_name,f'{source_s3_key}{ownership_payments_2020}')
-        op_2021_object = get_s3_obj(bucket_name,f'{source_s3_key}{ownership_payments_2021}')
+        op_2020_object = get_s3_obj(s3_aws_access_key_id, s3_secret_access_key, aws_region, bucket_name,f'{source_s3_key}{ownership_payments_2020}')
+        op_2021_object = get_s3_obj(s3_aws_access_key_id, s3_secret_access_key, aws_region, bucket_name,f'{source_s3_key}{ownership_payments_2021}')
         # read ownership payment data
         fact_op_2020_df = read_chunks_bytes(op_2020_object, 50000)
         fact_op_2021_df = read_chunks_bytes(op_2021_object, 50000)
@@ -300,8 +295,10 @@ with DAG("etl_dag",  # Dag id
         #check for data types
         print(fact_ownership_payment.info())
         
+        fact_ownership_payment.columns = fact_ownership_payment.columns.str.lower()
+        
         # upload to s3
-        # upload_dataframe_to_s3_csv(fact_ownership_payment, bucket_name, f"{transform_s3_key}{fact_ownership_payments_file}")
+        upload_dataframe_to_s3_csv(s3_aws_access_key_id, s3_secret_access_key, aws_region, fact_ownership_payment, bucket_name, f"{transform_s3_key}{fact_ownership_payments_file}")
         logging.info('successfully transformed fact_ownership_payments.')
         
         dim_manufacture_gpo = dim_manufacture_gpo.drop_duplicates()
@@ -309,7 +306,10 @@ with DAG("etl_dag",  # Dag id
                               'Applicable_Manufacturer_or_Applicable_GPO_Making_Payment_Name': 'Manufacturer_Name',
                               'Applicable_Manufacturer_or_Applicable_GPO_Making_Payment_State':'Manufacturer_State',
                               'Applicable_Manufacturer_or_Applicable_GPO_Making_Payment_Country': 'Manufacturer_Country'}, inplace = True)
-        # upload_dataframe_to_s3_csv(dim_manufacture_gpo, bucket_name, f"{transform_s3_key}ownership_{dim_manufacture_gpo_file}")
+        
+        dim_manufacture_gpo.columns = dim_manufacture_gpo.columns.str.lower()
+        
+        upload_dataframe_to_s3_csv(s3_aws_access_key_id, s3_secret_access_key, aws_region, dim_manufacture_gpo, bucket_name, f"{transform_s3_key}ownership_{dim_manufacture_gpo_file}")
         logging.info('successfully transformed ownership payment dim_manufacture_gpo.')
         
     t8_op_etl = PythonOperator(task_id='transform_ownership_payments_data',
@@ -321,7 +321,7 @@ with DAG("etl_dag",  # Dag id
     ################################################################
     def physician_etl():
         logging.info('transforming physician recipient file.')
-        profile_object = get_s3_obj(bucket_name,f'{source_s3_key}{physician_profile}')
+        profile_object = get_s3_obj(s3_aws_access_key_id, s3_secret_access_key, aws_region, bucket_name,f'{source_s3_key}{physician_profile}')
         # read profile data
         dim_physician_recipient = read_chunks_bytes(profile_object, 50000)
         dim_physician_recipient =  dim_physician_recipient[['Covered_Recipient_Profile_Type', 'Covered_Recipient_Profile_ID', 'Covered_Recipient_NPI',
@@ -358,8 +358,10 @@ with DAG("etl_dag",  # Dag id
         null_values = dim_physician_recipient.isnull().sum()
         print(null_values)    
         
+        dim_physician_recipient.columns = dim_physician_recipient.columns.str.lower()
+        
         # upload to s3
-        upload_dataframe_to_s3_csv(dim_physician_recipient, bucket_name, f"{transform_s3_key}{dim_physician_recipient_file}")
+        upload_dataframe_to_s3_csv(s3_aws_access_key_id, s3_secret_access_key, aws_region, dim_physician_recipient, bucket_name, f"{transform_s3_key}{dim_physician_recipient_file}")
         logging.info('successfully transformed ownership payment dim_physician_recipient.')
         
     t9_physician_etl = PythonOperator(task_id='transform_physician_profile_data',
@@ -368,8 +370,8 @@ with DAG("etl_dag",  # Dag id
 
     def research_payment_etl():
         logging.info('transforming ownership payment file.')
-        rp_2020_object = get_s3_obj(bucket_name,f'{source_s3_key}{research_payments_2020}')
-        rp_2021_object = get_s3_obj(bucket_name,f'{source_s3_key}{research_payments_2021}')
+        rp_2020_object = get_s3_obj(s3_aws_access_key_id, s3_secret_access_key, aws_region, bucket_name,f'{source_s3_key}{research_payments_2020}')
+        rp_2021_object = get_s3_obj(s3_aws_access_key_id, s3_secret_access_key, aws_region, bucket_name,f'{source_s3_key}{research_payments_2021}')
         # read ownership payment data
         fact_rp_2020_df = read_chunks_bytes(rp_2020_object, 50000)
         fact_rp_2021_df = read_chunks_bytes(rp_2021_object, 50000)
@@ -435,8 +437,10 @@ with DAG("etl_dag",  # Dag id
         # Renaming columns for consistency 
         fact_research_payment.rename(columns = {'Applicable_Manufacturer_or_Applicable_GPO_Making_Payment_ID':'Manufacturer_ID'}, inplace = True)
         
+        fact_research_payment.columns = fact_research_payment.columns.str.lower()
+        
         # upload to s3
-        upload_dataframe_to_s3_csv(fact_research_payment, bucket_name, f"{transform_s3_key}{fact_research_payments_file}")
+        upload_dataframe_to_s3_csv(s3_aws_access_key_id, s3_secret_access_key, aws_region, fact_research_payment, bucket_name, f"{transform_s3_key}{fact_research_payments_file}")
         logging.info('successfully transformed fact_research_payment.')
         
         # dim manufacture gpo
@@ -466,21 +470,143 @@ with DAG("etl_dag",  # Dag id
         # Check for data type errors
         print(dim_manufacture_gpo.info())
         
+        dim_manufacture_gpo.columns = dim_manufacture_gpo.columns.str.lower()
+        
         # upload to s3
-        upload_dataframe_to_s3_csv(dim_manufacture_gpo, bucket_name, f"{transform_s3_key}research_{dim_manufacture_gpo_file}")
+        upload_dataframe_to_s3_csv(s3_aws_access_key_id, s3_secret_access_key, aws_region, dim_manufacture_gpo, bucket_name, f"{transform_s3_key}research_{dim_manufacture_gpo_file}")
         logging.info('successfully transformed fact_research_payment.')
         
-    t10_research_payment_etl = PythonOperator    (task_id='transform_research_payment_data',
+    t10_research_payment_etl = PythonOperator(task_id='transform_research_payment_data',
                                                  python_callable=research_payment_etl,
                                                  dag=dag)
     
+    ################################################################
+    ## Ratings ETL ##
+    ################################################################
+    def ratings_etl():
+        logging.info('transforming ratings file.')
+        ratings_object = get_s3_obj(s3_aws_access_key_id, s3_secret_access_key, aws_region, bucket_name,f'{source_s3_key}{doctor_ratings}')
+        ratings_df = read_chunks_bytes(ratings_object, 50000)
+        csv_data = ratings_df.to_dict(orient='records')
+        
+        # parse data array
+        filteredArr = []
+        for entry in csv_data:
+            if entry['count'] == 0  and entry['rating'] == 0.0:
+                continue
+            else:
+                entry['npi'] = int( entry['physician_npi'])
+                entry['physician_profile_id'] =  int(entry['physician_profile_id'])
+                del entry['count']
+                del entry['physician_npi']
+                filteredArr.append(entry)
+                
+        fact_ratings_df = pd.DataFrame(filteredArr)
+        upload_dataframe_to_s3_csv(s3_aws_access_key_id, s3_secret_access_key, aws_region, fact_ratings_df, bucket_name, f"{transform_s3_key}{fact_ratings_file}")
+        logging.info('ratings file transformation complete.')
+        
+        
+        
+    t11_ratings_etl = PythonOperator(task_id='transform_ratings_data',
+                                                 python_callable=ratings_etl,
+                                                 dag=dag)
     
+    def load_ratings_to_rds():
+        logging.info('loading ratings file.')
+        ratings_object = get_s3_obj(s3_aws_access_key_id, s3_secret_access_key, aws_region, bucket_name,f'{transform_s3_key}{fact_ratings_file}')
+        ratings_df = read_chunks_bytes(ratings_object, 50000)
+        load_to_rds(ratings_df, rds_host, rds_port, rds_db, rds_username, rds_pw, ratings_table, create_ratings_sql)
+        logging.info('ratings file loaded.')
+        
+    t12_load_ratings = PythonOperator(task_id='load_ratings_data_to_rds',
+                                                 python_callable=load_ratings_to_rds,
+                                                 dag=dag)
 
-# extraction
+    def load_mips_to_rds():
+        logging.info('loading MIPS file.')
+        mips_object = get_s3_obj(s3_aws_access_key_id, s3_secret_access_key, aws_region, bucket_name,f'{transform_s3_key}{fact_mips_file}')
+        mips_df = read_chunks_bytes(mips_object, 50000)
+        load_to_rds(mips_df, rds_host, rds_port, rds_db, rds_username, rds_pw, mips_table, create_mips_sql)
+        logging.info('MIPS file loaded.')
+        
+    t13_load_mips = PythonOperator(task_id='load_mips_data_to_rds',
+                                                 python_callable=load_mips_to_rds,
+                                                 dag=dag)
+
+    def load_physician_recipient_to_rds():
+        logging.info('loading physician recipient file.')
+        physician_object = get_s3_obj(s3_aws_access_key_id, s3_secret_access_key, aws_region, bucket_name,f'{transform_s3_key}{dim_physician_recipient_file}')
+        physician_df = read_chunks_bytes(physician_object, 50000)
+        load_to_rds(physician_df, rds_host, rds_port, rds_db, rds_username, rds_pw, physician_recipient_table, create_physician_sql)
+        logging.info('physician recipient file loaded.')
+        
+    t14_load_physician = PythonOperator(task_id='load_physician_data_to_rds',
+                                                 python_callable=load_physician_recipient_to_rds,
+                                                 dag=dag)
+    
+    def load_ownership_to_rds():
+        logging.info('loading ownership payment file.')
+        ownership_object = get_s3_obj(s3_aws_access_key_id, s3_secret_access_key, aws_region, bucket_name,f'{transform_s3_key}{fact_ownership_payments_file}')
+        ownership_df = read_chunks_bytes(ownership_object, 50000)
+        load_to_rds(ownership_df, rds_host, rds_port, rds_db, rds_username, rds_pw, ownership_table, create_ownership_sql)
+        logging.info('ownership payment file loaded.')
+        
+    t15_load_ownership = PythonOperator(task_id='load_ownership_data_to_rds',
+                                            python_callable=load_ownership_to_rds,
+                                            dag=dag)
+    
+    def load_research_to_rds():
+        logging.info('loading research file.')
+        research_obj = get_s3_obj(s3_aws_access_key_id, s3_secret_access_key, aws_region, bucket_name,f'{transform_s3_key}{fact_research_payments_file}')
+        research_df = read_chunks_bytes(research_obj, 50000)
+        load_to_rds(research_df, rds_host, rds_port, rds_db, rds_username, rds_pw, research_table, create_research_sql)
+    
+    t16_load_research = PythonOperator(task_id='load_research_data_to_rds',
+                                            python_callable=load_research_to_rds,
+                                            dag=dag)
+    
+    def load_gpo_to_rds():
+        logging.info('loading gpo file.')
+        rp_gpo = get_s3_obj(s3_aws_access_key_id, s3_secret_access_key, aws_region, bucket_name,f'{transform_s3_key}research_{dim_manufacture_gpo_file}')
+        op_gpo = get_s3_obj(s3_aws_access_key_id, s3_secret_access_key, aws_region, bucket_name,f'{transform_s3_key}ownership_{dim_manufacture_gpo_file}')
+        gp_gpo = get_s3_obj(s3_aws_access_key_id, s3_secret_access_key, aws_region, bucket_name,f'{transform_s3_key}general_{dim_manufacture_gpo_file}')
+        rp_df = read_chunks_bytes(rp_gpo, 50000)
+        op_df = read_chunks_bytes(op_gpo, 50000)
+        gp_df = read_chunks_bytes(gp_gpo, 50000)
+        gpo_all_df = pd.concat([rp_df, op_df, gp_df]).drop_duplicates()
+        load_to_rds(gpo_all_df, rds_host, rds_port, rds_db, rds_username, rds_pw, gpo_table, create_gpo_sql)
+        logging.info('gpo file loaded.')
+        
+    t17_load_gpo = PythonOperator(task_id='load_gpo_data_to_rds',
+                                            python_callable=load_gpo_to_rds,
+                                            dag=dag)
+    
+    # def load_general_to_rds():
+    #     logging.info('loading general file.')
+    #     general_obj = get_s3_obj(s3_aws_access_key_id, s3_secret_access_key, aws_region, bucket_name,f'{transform_s3_key}{fact_general_payments_file}')
+    #     general_df = read_chunks_bytes(general_obj, 50000)
+    #     load_to_rds(general_df, rds_host, rds_port, rds_db, rds_username, rds_pw, general_table, create_general_sql)
+    
+    # t18_load_general = PythonOperator(task_id='load_general_data_to_rds',
+    #                                         python_callable=load_general_to_rds,
+    #                                         dag=dag)
+
+# # extraction
 t0_initialize >> [t1_ingest_research_2020, t1_ingest_research_2021, t3_ingest_ownersip, t4_ingest_mips, t5_ingest_hospital_owner_info, t6_ingest_physician_profile]
 
-# transform
+# # transform
 t4_ingest_mips >> t7_mips_etl
 t3_ingest_ownersip >> t8_op_etl
 t6_ingest_physician_profile >> t9_physician_etl
 [t1_ingest_research_2020, t1_ingest_research_2021] >> t10_research_payment_etl
+t0_initialize >> t11_ratings_etl
+
+# load
+# load dim tables first
+t9_physician_etl >> [t14_load_physician, t17_load_gpo]
+# then load fact_tables
+
+[t11_ratings_etl, t14_load_physician, t17_load_gpo] >> t12_load_ratings
+[t7_mips_etl , t14_load_physician, t17_load_gpo] >> t13_load_mips
+[t8_op_etl, t14_load_physician, t17_load_gpo] >> t15_load_ownership
+[t10_research_payment_etl, t14_load_physician, t17_load_gpo] >> t16_load_research
