@@ -2,6 +2,7 @@
 Correlation One - DS4A Data Engineering
 Learning Group 23
 
+<<<<<<< HEAD
 ## Introduction
 Our team chose this topic because we are interested in understanding how COVID impacted trends across the healthcare industry and whether this shift has any impact on the quality of care delivered by physicians.
 
@@ -61,3 +62,13 @@ What would you do differently next?
 - Explore other ways of optimizing data storage, or enhance the ETL process:
     - Some of our scripts are not incorporated into the ETL as DAGs because of file size/memory issues
     - Optimize storage with different data file types for example parquet vs. csv
+=======
+Setup
+- create virtualenv
+- pip install requirements txt
+- run `export AIRFLOW_HOME="$(pwd)`
+- Data Dictionaries:
+  MIPS: https://data.cms.gov/provider-data/sites/default/files/data_dictionaries/physician/DOC_Data_Dictionary.pdf
+  All Payments and Physician Profile: https://www.cms.gov/openpayments/downloads/openpaymentsdatadictionary.pdf
+  Hospital All Owners: https://data.cms.gov/sites/default/files/2023-02/6159d07d-0341-40e7-85a8-7fd8329475f7/Hospital_All_Owners_Data_Dictionary_2023.02.01.pdf
+>>>>>>> 9d949853c458a06ec27b22af986a2fdfbe554c96
