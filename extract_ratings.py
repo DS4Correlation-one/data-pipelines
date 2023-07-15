@@ -32,12 +32,11 @@ def save_data_to_csv(file_data):
                    'doctor_last_name',
                    'rating',
                    'physician_npi'
-
                    ]
 
     file_exists = os.path.isfile('doctors_ratings.csv')
 
-    with open('doctors_ratings.csv', mode='a', newline='') as csv_file:
+    with open('resources/doctors_ratings.csv', mode='a', newline='') as csv_file:
         writer = csv.DictWriter(csv_file, fieldnames=field_names)
 
         if not file_exists:
