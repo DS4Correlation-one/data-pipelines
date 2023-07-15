@@ -44,14 +44,18 @@ def save_data_to_csv(file_data):
                    'doctor_first_name',
                    'doctor_last_name',
                    'rating',
+<<<<<<< HEAD:extract_ratings.py
+                   'physician_npi'
+=======
                    'physician_npi',
                    'count',
                    'physician_profile_id'
+>>>>>>> 9d949853c458a06ec27b22af986a2fdfbe554c96:ratesmd.py
                    ]
 
     file_exists = os.path.isfile('doctors_ratings.csv')
 
-    with open('doctors_ratings.csv', mode='a', newline='') as csv_file:
+    with open('resources/doctors_ratings.csv', mode='a', newline='') as csv_file:
         writer = csv.DictWriter(csv_file, fieldnames=field_names)
 
         if not file_exists:
